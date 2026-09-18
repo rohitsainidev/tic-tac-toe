@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#07090e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Cyber Tic Tac Toe</title>
+
+    <!-- Modern Typography: Outfit & Space Grotesk -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Cyberpunk Ambient Background Lights -->
+    <div class="ambient-glow glow-cyan"></div>
+    <div class="ambient-glow glow-magenta"></div>
+    <div class="cyber-grid-overlay"></div>
+
+    <!-- Victory / Draw Modal -->
+    <div class="msg-container hide" id="msg-container">
+        <div class="result-card">
+            <div class="result-icon" id="result-icon">🏆</div>
+            <h2 id="msg">Player O Wins!</h2>
+            <p id="result-text">Clean victory! Unstoppable tactics.</p>
+            <div class="result-actions">
+                <button id="new-btn" class="primary-glow-btn">
+                    <span>Play Again</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fullscreen Celebration Canvas -->
+    <canvas id="confetti-canvas"></canvas>
+
+    <main>
+        <!-- Top Navigation Bar / Controls -->
+        <header class="top-bar">
+            <!-- Mode Switcher -->
+            <div class="mode-switch" role="group" aria-label="Game Mode">
+                <button class="mode-btn active" id="mode-pvp" data-mode="pvp">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    <span>2P Match</span>
+                </button>
+                <button class="mode-btn" id="mode-ai" data-mode="ai">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <rect x="3" y="11" width="18" height="10" rx="2"/>
+                        <circle cx="12" cy="5" r="2"/>
+                        <path d="M12 7v4"/>
+                        <line x1="8" y1="16" x2="8.01" y2="16"/>
+                        <line x1="16" y1="16" x2="16.01" y2="16"/>
+                    </svg>
+                    <span>vs Bot</span>
+                </button>
+            </div>
+
+            <!-- Audio Toggle -->
+            <button class="icon-btn" id="sound-btn" title="Toggle Sound" aria-label="Sound Toggle">
+                <svg id="sound-icon-on" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                </svg>
+                <svg id="sound-icon-off" class="hide" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                    <line x1="23" y1="9" x2="17" y2="15"/>
+                    <line x1="17" y1="9" x2="23" y2="15"/>
+                </svg>
+            </button>
+        </header>
+
+        <!-- Main Title & Turn Badge -->
+        <div class="header">
+            <h1 class="brand-title">TIC <span class="accent-o">TAC</span> <span class="accent-x">TOE</span></h1>
+            <div class="turn-indicator turn-o" id="turn-indicator">
+                <span class="turn-dot"></span>
+                <span id="turn-text">Player O's Turn</span>
+            </div>
+        </div>
+
+        <!-- Cyber Scoreboard -->
+        <section class="scoreboard" aria-label="Scoreboard">
+            <div class="score-card active-turn" id="card-o">
+                <span class="player-label player-o">PLAYER O</span>
+                <span class="score-number" id="score-o">0</span>
+            </div>
+
+            <div class="score-divider"></div>
+
+            <div class="score-card" id="card-x">
+                <span class="player-label player-x" id="player-x-name">PLAYER X</span>
+                <span class="score-number" id="score-x">0</span>
+            </div>
+
+            <div class="score-divider"></div>
+
+            <div class="score-card" id="card-draw">
+                <span class="player-label draw-label">DRAWS</span>
+                <span class="score-number" id="score-draw">0</span>
+            </div>
+        </section>
+
+        <!-- Game Board Container -->
+        <section class="board-wrapper">
+            <div class="game-container">
+                <!-- Laser Strike Line -->
+                <div class="strike-line hide" id="strike-line"></div>
+
+                <!-- 3x3 Grid Buttons -->
+                <div class="game" role="grid" aria-label="Tic Tac Toe Grid">
+                    <button class="box" aria-label="Cell 1" data-index="0"></button>
+                    <button class="box" aria-label="Cell 2" data-index="1"></button>
+                    <button class="box" aria-label="Cell 3" data-index="2"></button>
+
+                    <button class="box" aria-label="Cell 4" data-index="3"></button>
+                    <button class="box" aria-label="Cell 5" data-index="4"></button>
+                    <button class="box" aria-label="Cell 6" data-index="5"></button>
+
+                    <button class="box" aria-label="Cell 7" data-index="6"></button>
+                    <button class="box" aria-label="Cell 8" data-index="7"></button>
+                    <button class="box" aria-label="Cell 9" data-index="8"></button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bottom Controls -->
+        <footer class="footer-controls">
+            <button id="reset-btn" class="cyber-btn" title="Reset Board">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                    <path d="M3 3v5h5"/>
+                </svg>
+                <span>Reset Round</span>
+            </button>
+        </footer>
+    </main>
+
+    <!-- Pro Canvas Confetti Engine -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
