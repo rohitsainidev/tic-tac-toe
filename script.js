@@ -90,6 +90,17 @@ function initAudio() {
     }
 }
 
+// Pre-unlock Web Audio eagerly on the very first touch/click anywhere
+function unlockAudio() {
+    initAudio();
+    window.removeEventListener("pointerdown", unlockAudio);
+    window.removeEventListener("touchstart", unlockAudio);
+    window.removeEventListener("click", unlockAudio);
+}
+window.addEventListener("pointerdown", unlockAudio, { passive: true });
+window.addEventListener("touchstart", unlockAudio, { passive: true });
+window.addEventListener("click", unlockAudio, { passive: true });
+
 function triggerHaptic(pattern) {
     if ("vibrate" in navigator) {
         try {
@@ -211,7 +222,8 @@ function makeMove(index, symbol) {
 
 // User box click / touch
 boxes.forEach((box) => {
-    box.addEventListener("click", () => {
+    box.addEventListener("click", (e) => {
+        e.preventDefault();
         const index = parseInt(box.getAttribute("data-index"), 10);
 
         if (gameOver || isBotThinking || boardState[index] !== null) return;
@@ -222,11 +234,13 @@ boxes.forEach((box) => {
 });
 
 // ===================================================
-// SMART AI BOT MOVE
+// SMART AI BOT MOVE (Fast & Responsive)
 // ===================================================
 function triggerBotMove() {
     isBotThinking = true;
 
+    // Fast, responsive AI move (110ms - 140ms) - feels snappy and alive
+    const thinkingDelay = Math.floor(Math.random() * 30) + 110;
     setTimeout(() => {
         if (gameOver) {
             isBotThinking = false;
@@ -239,7 +253,7 @@ function triggerBotMove() {
         }
 
         isBotThinking = false;
-    }, 320);
+    }, thinkingDelay);
 }
 
 function getBestBotMove() {
@@ -330,10 +344,15 @@ function handleWin(winner, winningPattern) {
         resultText.innerText = "Flawless victory! Superior strategy.";
     }
 
+    // Instant energetic celebration confetti
+    setTimeout(() => {
+        createConfetti();
+    }, 40);
+
+    // Prompt, snappy victory modal popup
     setTimeout(() => {
         msgContainer.classList.remove("hide");
-        createConfetti();
-    }, 450);
+    }, 140);
 }
 
 function handleDraw() {
@@ -350,7 +369,7 @@ function handleDraw() {
 
     setTimeout(() => {
         msgContainer.classList.remove("hide");
-    }, 350);
+    }, 120);
 }
 
 // ===================================================
@@ -426,125 +445,172 @@ function toggleSound() {
 }
 
 // ===================================================
-// PRO CELEBRATION ENGINE (CANVAS DUAL CANNONS + PHYSICS)
+// ULTRA-FAST HIGH-VELOCITY CELEBRATION ENGINE
+// Snappy, energetic, fast-gravity, explosive multi-burst
 // ===================================================
-let confettiIntervalId = null;
+let confettiTimeouts = [];
 let fallbackAnimId = null;
 
 function createConfetti() {
     clearConfetti();
 
-    // 1. Pro Canvas-Confetti Engine (Dual Cannons & Center Blast)
-    if (typeof confetti === "function") {
-        const colors = ["#00f2fe", "#f72585", "#fbbf24", "#38bdf8", "#a855f7", "#ffffff"];
+    const colors = ["#00f2fe", "#f72585", "#fbbf24", "#38bdf8", "#c084fc", "#ffffff"];
 
-        // Stage 1: Fireworks blast from center
+    // 1. If Canvas-Confetti library is available: Ultra-fast, high velocity, snappy duration
+    if (typeof confetti === "function") {
+        // Blast 1: Instant high-velocity center firework (startVelocity: 68, gravity: 1.45, ticks: 120)
         confetti({
-            particleCount: 75,
-            spread: 100,
+            particleCount: 85,
+            spread: 95,
             origin: { y: 0.62 },
             colors: colors,
-            startVelocity: 45,
-            gravity: 1.1,
+            startVelocity: 68,
+            gravity: 1.45,
+            ticks: 120,
             scalar: 1.15
         });
 
-        // Stage 2: Dual Cross-Firing Cannons
-        const duration = 2.4 * 1000;
-        const animationEnd = Date.now() + duration;
-
-        confettiIntervalId = setInterval(() => {
-            const timeLeft = animationEnd - Date.now();
-            if (timeLeft <= 0) {
-                clearInterval(confettiIntervalId);
-                confettiIntervalId = null;
-                return;
-            }
-
-            const particleCount = 25 * (timeLeft / duration);
-
-            // Left Cannon
+        // Blast 2: Fast cross-firing dual cannons at 70ms
+        const t1 = setTimeout(() => {
+            if (!gameOver) return;
+            // Left Cannon - high speed
             confetti({
-                particleCount: particleCount,
+                particleCount: 45,
                 angle: 60,
                 spread: 55,
-                origin: { x: 0, y: 0.8 },
-                colors: colors
+                origin: { x: 0, y: 0.75 },
+                colors: colors,
+                startVelocity: 68,
+                gravity: 1.45,
+                ticks: 110
             });
-
-            // Right Cannon
+            // Right Cannon - high speed
             confetti({
-                particleCount: particleCount,
+                particleCount: 45,
                 angle: 120,
                 spread: 55,
-                origin: { x: 1, y: 0.8 },
-                colors: colors
+                origin: { x: 1, y: 0.75 },
+                colors: colors,
+                startVelocity: 68,
+                gravity: 1.45,
+                ticks: 110
             });
-        }, 220);
+        }, 70);
+        confettiTimeouts.push(t1);
+
+        // Blast 3: Final rapid celebratory pop at 180ms
+        const t2 = setTimeout(() => {
+            if (!gameOver) return;
+            confetti({
+                particleCount: 50,
+                spread: 120,
+                origin: { y: 0.52 },
+                colors: colors,
+                startVelocity: 55,
+                gravity: 1.5,
+                ticks: 100
+            });
+        }, 180);
+        confettiTimeouts.push(t2);
+
         return;
     }
 
-    // 2. High-Performance Canvas Physics Fallback (Works 100% Offline)
-    runCanvasPhysicsFallback();
+    // 2. High-Performance Zero-Lag Native Canvas Fallback (Super Fast Physics)
+    runFastCanvasPhysics();
 }
 
-function runCanvasPhysicsFallback() {
+function runFastCanvasPhysics() {
     if (!confettiCanvas) return;
     const ctx = confettiCanvas.getContext("2d");
-    confettiCanvas.width = window.innerWidth;
-    confettiCanvas.height = window.innerHeight;
+    const dpr = window.devicePixelRatio || 1;
+    confettiCanvas.width = window.innerWidth * dpr;
+    confettiCanvas.height = window.innerHeight * dpr;
+    ctx.scale(dpr, dpr);
 
     const colors = ["#00f2fe", "#f72585", "#fbbf24", "#38bdf8", "#ec4899", "#ffffff"];
     const particles = [];
+    const width = window.innerWidth;
+    const height = window.innerHeight;
 
-    // Spawn 90 particles
-    for (let i = 0; i < 90; i++) {
-        const isLeft = Math.random() < 0.5;
+    // Spawn 130 explosive, fast-moving particles
+    for (let i = 0; i < 130; i++) {
+        const type = i % 3;
+        let originX, vx, vy;
+
+        if (type === 0) {
+            // Left cannon
+            originX = 20;
+            vx = Math.random() * 14 + 7;
+            vy = -(Math.random() * 18 + 14);
+        } else if (type === 1) {
+            // Right cannon
+            originX = width - 20;
+            vx = -(Math.random() * 14 + 7);
+            vy = -(Math.random() * 18 + 14);
+        } else {
+            // Center burst
+            originX = width * 0.5 + (Math.random() * 60 - 30);
+            vx = (Math.random() - 0.5) * 22;
+            vy = -(Math.random() * 20 + 13);
+        }
+
         particles.push({
-            x: isLeft ? 20 : confettiCanvas.width - 20,
-            y: confettiCanvas.height * 0.75,
-            vx: (isLeft ? 1 : -1) * (Math.random() * 8 + 4),
-            vy: -(Math.random() * 14 + 10),
-            size: Math.random() * 8 + 6,
+            x: originX,
+            y: height * 0.72,
+            vx: vx,
+            vy: vy,
+            size: Math.random() * 7 + 6,
             color: colors[Math.floor(Math.random() * colors.length)],
             rotation: Math.random() * 360,
-            vRot: Math.random() * 8 - 4,
-            gravity: 0.45,
-            drag: 0.985,
-            opacity: 1
+            vRot: (Math.random() - 0.5) * 24,
+            gravity: 1.35, // Fast, natural, energetic gravity
+            drag: 0.955,    // Fast aerodynamic descent
+            opacity: 1,
+            isCircle: Math.random() > 0.65
         });
     }
 
     function animate() {
-        ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+        ctx.clearRect(0, 0, width, height);
         let alive = false;
 
-        particles.forEach((p) => {
+        for (let i = 0; i < particles.length; i++) {
+            const p = particles[i];
             p.vx *= p.drag;
             p.vy += p.gravity;
             p.x += p.vx;
             p.y += p.vy;
             p.rotation += p.vRot;
-            if (p.y > confettiCanvas.height * 0.6) {
-                p.opacity -= 0.008;
+
+            // Fade quickly and cleanly once descending
+            if (p.vy > 2) {
+                p.opacity -= 0.019;
             }
 
-            if (p.opacity > 0 && p.y < confettiCanvas.height + 50) {
+            if (p.opacity > 0 && p.y < height + 40) {
                 alive = true;
                 ctx.save();
                 ctx.globalAlpha = Math.max(0, p.opacity);
                 ctx.translate(p.x, p.y);
                 ctx.rotate((p.rotation * Math.PI) / 180);
                 ctx.fillStyle = p.color;
-                ctx.fillRect(-p.size / 2, -p.size / 3, p.size, p.size * 1.5);
+
+                if (p.isCircle) {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, p.size * 0.5, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillRect(-p.size / 2, -p.size / 3, p.size, p.size * 1.4);
+                }
                 ctx.restore();
             }
-        });
+        }
 
         if (alive) {
             fallbackAnimId = requestAnimationFrame(animate);
         } else {
-            ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+            ctx.clearRect(0, 0, width, height);
         }
     }
 
@@ -552,9 +618,9 @@ function runCanvasPhysicsFallback() {
 }
 
 function clearConfetti() {
-    if (confettiIntervalId) {
-        clearInterval(confettiIntervalId);
-        confettiIntervalId = null;
+    if (confettiTimeouts.length > 0) {
+        confettiTimeouts.forEach(t => clearTimeout(t));
+        confettiTimeouts = [];
     }
     if (fallbackAnimId) {
         cancelAnimationFrame(fallbackAnimId);
