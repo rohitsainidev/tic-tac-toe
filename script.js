@@ -13,8 +13,6 @@ const msgContainer = document.querySelector("#msg-container");
 const msg = document.querySelector("#msg");
 const resultText = document.querySelector("#result-text");
 const resultIcon = document.querySelector("#result-icon");
-const inspectBtn = document.querySelector("#inspect-btn");
-const viewResultBtn = document.querySelector("#view-result-btn");
 
 const turnIndicator = document.querySelector("#turn-indicator");
 const turnText = document.querySelector("#turn-text");
@@ -442,7 +440,6 @@ function resetBoard() {
 
     strikeLine.className = "strike-line hide";
     msgContainer.classList.add("hide");
-    if (viewResultBtn) viewResultBtn.classList.add("hide");
 
     updateTurnIndicator();
     clearConfetti();
@@ -693,24 +690,6 @@ function clearConfetti() {
 // ===================================================
 resetBtn.addEventListener("click", resetBoard);
 newGameBtn.addEventListener("click", resetBoard);
-
-if (inspectBtn) {
-    inspectBtn.addEventListener("click", () => {
-        triggerHaptic(20);
-        msgContainer.classList.add("hide");
-        if (viewResultBtn && gameOver) {
-            viewResultBtn.classList.remove("hide");
-        }
-    });
-}
-
-if (viewResultBtn) {
-    viewResultBtn.addEventListener("click", () => {
-        triggerHaptic(20);
-        viewResultBtn.classList.add("hide");
-        msgContainer.classList.remove("hide");
-    });
-}
 
 modePvPBtn.addEventListener("click", () => setMode("pvp"));
 modeAiBtn.addEventListener("click", () => setMode("ai"));
