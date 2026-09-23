@@ -5,6 +5,7 @@
 
 // --- DOM References ---
 const boxes = document.querySelectorAll(".box");
+const boardWrapper = document.querySelector(".board-wrapper");
 const resetBtn = document.querySelector("#reset-btn");
 const newGameBtn = document.querySelector("#new-btn");
 
@@ -12,6 +13,8 @@ const msgContainer = document.querySelector("#msg-container");
 const msg = document.querySelector("#msg");
 const resultText = document.querySelector("#result-text");
 const resultIcon = document.querySelector("#result-icon");
+const inspectBtn = document.querySelector("#inspect-btn");
+const viewResultBtn = document.querySelector("#view-result-btn");
 
 const turnIndicator = document.querySelector("#turn-indicator");
 const turnText = document.querySelector("#turn-text");
@@ -55,6 +58,8 @@ let boardState = Array(9).fill(null);
 let turnO = true;
 let gameOver = false;
 let isBotThinking = false;
+let lastMoveIndex = null;
+let winSequenceTimeouts = [];
 let currentMode = "pvp"; // "pvp" | "ai"
 
 const score = {
@@ -62,6 +67,11 @@ const score = {
     X: 0,
     draw: 0
 };
+
+function clearWinTimeouts() {
+    winSequenceTimeouts.forEach(t => clearTimeout(t));
+    winSequenceTimeouts = [];
+}
 
 // --- Winning Combinations & Laser Line Classes ---
 const winPatterns = [
@@ -116,14 +126,16 @@ function playMoveSound(isO) {
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = isO ? "sine" : "triangle";
-        osc.frequency.setValueAtTime(isO ? 540 : 420, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(isO ? 780 : 310, audioCtx.currentTime + 0.08);
-        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+        const startFreq = isO ? 520 : 380;
+        const endFreq = isO ? 680 : 310;
+        osc.frequency.setValueAtTime(startFreq, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(endFreq, audioCtx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.14, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
         osc.start();
-        osc.stop(audioCtx.currentTime + 0.08);
+        osc.stop(audioCtx.currentTime + 0.12);
     } catch (e) {}
 }
 
@@ -131,19 +143,20 @@ function playWinSound() {
     if (!soundEnabled) return;
     try {
         initAudio();
-        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        // Warm celebratory arpeggio: C5, E5, G5, C6
+        const notes = [523.25, 659.25, 783.99, 1046.50];
         notes.forEach((freq, idx) => {
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.type = "sine";
-            osc.frequency.value = freq;
-            const startTime = audioCtx.currentTime + idx * 0.08;
-            gain.gain.setValueAtTime(0.1, startTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.22);
+            osc.type = "triangle";
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            const startTime = audioCtx.currentTime + idx * 0.09;
+            gain.gain.setValueAtTime(0.12, startTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.35);
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             osc.start(startTime);
-            osc.stop(startTime + 0.22);
+            osc.stop(startTime + 0.35);
         });
     } catch (e) {}
 }
@@ -173,16 +186,24 @@ function playDrawSound() {
 // TURN & SCOREBOARD DISPLAY
 // ===================================================
 function updateTurnIndicator() {
+    if (gameOver) return;
+
     if (turnO) {
         turnText.innerText = currentMode === "ai" ? "Your Turn (O)" : "Player O's Turn";
-        turnIndicator.classList.remove("turn-x");
-        turnIndicator.classList.add("turn-o");
+        turnIndicator.className = "turn-indicator turn-o";
+        if (boardWrapper) boardWrapper.className = "board-wrapper turn-o";
         cardO?.classList.add("active-turn");
         cardX?.classList.remove("active-turn");
     } else {
-        turnText.innerText = currentMode === "ai" ? "Bot Thinking..." : "Player X's Turn";
-        turnIndicator.classList.remove("turn-o");
-        turnIndicator.classList.add("turn-x");
+        if (currentMode === "ai") {
+            turnText.innerText = "Bot Thinking...";
+            turnIndicator.className = "turn-indicator turn-x thinking";
+            if (boardWrapper) boardWrapper.className = "board-wrapper";
+        } else {
+            turnText.innerText = "Player X's Turn";
+            turnIndicator.className = "turn-indicator turn-x";
+            if (boardWrapper) boardWrapper.className = "board-wrapper turn-x";
+        }
         cardX?.classList.add("active-turn");
         cardO?.classList.remove("active-turn");
     }
@@ -195,6 +216,13 @@ function makeMove(index, symbol) {
     boardState[index] = symbol;
     boxes[index].innerHTML = symbol === "O" ? SVG_O : SVG_X;
     boxes[index].disabled = true;
+
+    // Highlight last move indicator
+    if (lastMoveIndex !== null && boxes[lastMoveIndex]) {
+        boxes[lastMoveIndex].classList.remove("last-move", "last-o", "last-x");
+    }
+    lastMoveIndex = index;
+    boxes[index].classList.add("last-move", symbol === "O" ? "last-o" : "last-x");
 
     triggerHaptic(28);
     playMoveSound(symbol === "O");
@@ -214,7 +242,7 @@ function makeMove(index, symbol) {
     turnO = !turnO;
     updateTurnIndicator();
 
-    // If vs AI and it's X's turn, trigger bot move
+    // If vs AI and it's X's turn, trigger realistic paced bot move
     if (currentMode === "ai" && !turnO && !gameOver) {
         triggerBotMove();
     }
@@ -234,13 +262,14 @@ boxes.forEach((box) => {
 });
 
 // ===================================================
-// SMART AI BOT MOVE (Fast & Responsive)
+// SMART AI BOT MOVE (Balanced Mobile-Optimized Speed)
 // ===================================================
 function triggerBotMove() {
     isBotThinking = true;
 
-    // Fast, responsive AI move (110ms - 140ms) - feels snappy and alive
-    const thinkingDelay = Math.floor(Math.random() * 30) + 110;
+    // Balanced speed: 380ms - 460ms
+    // Snappy yet gives clear visual feedback of player's move
+    const thinkingDelay = Math.floor(Math.random() * 80) + 380;
     setTimeout(() => {
         if (gameOver) {
             isBotThinking = false;
@@ -315,6 +344,8 @@ function checkDrawCondition() {
 
 function handleWin(winner, winningPattern) {
     gameOver = true;
+    isBotThinking = false;
+    clearWinTimeouts();
 
     if (winner === "O") {
         score.O++;
@@ -324,52 +355,71 @@ function handleWin(winner, winningPattern) {
         scoreX.innerText = score.X;
     }
 
-    winningPattern.indices.forEach((idx) => {
-        boxes[idx].classList.add("winner");
-    });
+    turnText.innerText = currentMode === "ai"
+        ? (winner === "O" ? "VICTORY! (O WINS)" : "BOT WINS!")
+        : `PLAYER ${winner} WINS!`;
 
-    strikeLine.className = `strike-line ${winningPattern.strikeClass}`;
-    strikeLine.style.color = winner === "O" ? "var(--neon-cyan)" : "var(--neon-magenta)";
-    strikeLine.classList.remove("hide");
+    // Stage 1 (80ms): Winning trio lights up & laser strike line cuts across
+    const t1 = setTimeout(() => {
+        winningPattern.indices.forEach((idx) => {
+            boxes[idx].classList.add("winner");
+        });
 
-    triggerHaptic([60, 50, 120]);
-    playWinSound();
+        strikeLine.className = `strike-line ${winningPattern.strikeClass}`;
+        strikeLine.style.color = winner === "O" ? "var(--neon-cyan)" : "var(--neon-magenta)";
+        strikeLine.classList.remove("hide");
 
-    if (resultIcon) resultIcon.innerText = "🏆";
-    if (currentMode === "ai") {
-        msg.innerText = winner === "O" ? "You Won!" : "Bot Won!";
-        resultText.innerText = winner === "O" ? "Spectacular gameplay! You outsmarted the AI." : "Tough match! Try again to claim victory.";
-    } else {
-        msg.innerText = `Player ${winner} Wins!`;
-        resultText.innerText = "Flawless victory! Superior strategy.";
-    }
+        triggerHaptic([60, 50, 120]);
+        playWinSound();
+    }, 80);
+    winSequenceTimeouts.push(t1);
 
-    // Instant energetic celebration confetti
-    setTimeout(() => {
+    // Stage 2 (220ms): Celebration confetti burst
+    const t2 = setTimeout(() => {
+        if (!gameOver) return;
         createConfetti();
-    }, 40);
+    }, 220);
+    winSequenceTimeouts.push(t2);
 
-    // Prompt, snappy victory modal popup
-    setTimeout(() => {
+    // Stage 3 (680ms): Victory modal slides up smoothly
+    // Balanced speed: gives enough time to see the winning line without making player wait
+    const t3 = setTimeout(() => {
+        if (!gameOver) return;
+        if (resultIcon) resultIcon.innerText = "🏆";
+        if (currentMode === "ai") {
+            msg.innerText = winner === "O" ? "You Won!" : "Bot Won!";
+            resultText.innerText = winner === "O" 
+                ? "Spectacular gameplay! You outsmarted the AI." 
+                : "Tough match! Try again to claim victory.";
+        } else {
+            msg.innerText = `Player ${winner} Wins!`;
+            resultText.innerText = "Flawless victory! Superior strategy.";
+        }
         msgContainer.classList.remove("hide");
-    }, 140);
+    }, 680);
+    winSequenceTimeouts.push(t3);
 }
 
 function handleDraw() {
     gameOver = true;
+    isBotThinking = false;
+    clearWinTimeouts();
     score.draw++;
     scoreDraw.innerText = score.draw;
+    turnText.innerText = "STALEMATE (DRAW)!";
 
     triggerHaptic(60);
     playDrawSound();
 
-    if (resultIcon) resultIcon.innerText = "🤝";
-    msg.innerText = "Stalemate (Draw)!";
-    resultText.innerText = "Evenly matched battle. No moves left.";
-
-    setTimeout(() => {
+    // Balanced delay for draw (520ms)
+    const t = setTimeout(() => {
+        if (!gameOver) return;
+        if (resultIcon) resultIcon.innerText = "🤝";
+        msg.innerText = "Stalemate (Draw)!";
+        resultText.innerText = "Evenly matched battle. No moves left.";
         msgContainer.classList.remove("hide");
-    }, 120);
+    }, 520);
+    winSequenceTimeouts.push(t);
 }
 
 // ===================================================
@@ -377,19 +427,22 @@ function handleDraw() {
 // ===================================================
 function resetBoard() {
     triggerHaptic(20);
+    clearWinTimeouts();
     boardState = Array(9).fill(null);
     turnO = true;
     gameOver = false;
     isBotThinking = false;
+    lastMoveIndex = null;
 
     boxes.forEach((box) => {
         box.disabled = false;
         box.innerHTML = "";
-        box.classList.remove("winner");
+        box.classList.remove("winner", "last-move", "last-o", "last-x");
     });
 
     strikeLine.className = "strike-line hide";
     msgContainer.classList.add("hide");
+    if (viewResultBtn) viewResultBtn.classList.add("hide");
 
     updateTurnIndicator();
     clearConfetti();
@@ -640,6 +693,24 @@ function clearConfetti() {
 // ===================================================
 resetBtn.addEventListener("click", resetBoard);
 newGameBtn.addEventListener("click", resetBoard);
+
+if (inspectBtn) {
+    inspectBtn.addEventListener("click", () => {
+        triggerHaptic(20);
+        msgContainer.classList.add("hide");
+        if (viewResultBtn && gameOver) {
+            viewResultBtn.classList.remove("hide");
+        }
+    });
+}
+
+if (viewResultBtn) {
+    viewResultBtn.addEventListener("click", () => {
+        triggerHaptic(20);
+        viewResultBtn.classList.add("hide");
+        msgContainer.classList.remove("hide");
+    });
+}
 
 modePvPBtn.addEventListener("click", () => setMode("pvp"));
 modeAiBtn.addEventListener("click", () => setMode("ai"));
